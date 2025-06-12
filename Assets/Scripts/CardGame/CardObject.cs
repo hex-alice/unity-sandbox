@@ -19,6 +19,7 @@ public class CardObject : MonoBehaviour,
     Subject<CardObject> _onPointerEnter = new Subject<CardObject>();
     Subject<CardObject> _onPointerExit = new Subject<CardObject>();
     Subject<CardObject> _onBeginDrag = new Subject<CardObject>();
+    Subject<CardObject> _onDrag = new Subject<CardObject>();
     Subject<CardObject> _onEndDrag = new Subject<CardObject>();
     Subject<CardObject> _onPointerClick = new Subject<CardObject>();
     Subject<CardObject> _onPointerUp = new Subject<CardObject>();
@@ -31,6 +32,7 @@ public class CardObject : MonoBehaviour,
     public IObservable<CardObject> OnPointerUpAsObservable => _onPointerUp;
     public IObservable<CardObject> OnPointerDownAsObservable => _OnPointerDown;
     public IObservable<CardObject> OnBeginDragAsObservable => _onBeginDrag;
+    public IObservable<CardObject> OnDragAsObservable => _onDrag;
     public IObservable<CardObject> OnEndDragAsObservable => _onEndDrag;
 
     void Start() 
@@ -59,17 +61,18 @@ public class CardObject : MonoBehaviour,
 
     public void OnBeginDrag(PointerEventData eventData)
     {
-        _isDragging = true;
+        _onBeginDrag.OnNext(this);
     }
 
     public void OnEndDrag(PointerEventData eventData)
     {
-        _isDragging = false;
+        _onEndDrag.OnNext(this);
     }
 
     public void OnDrag(PointerEventData eventData)
     {
         transform.position = new Vector3(eventData.position.x, eventData.position.y, 0);
+        _onDrag.OnNext(this);
     }
 
     public void OnPointerClick(PointerEventData pointerEventData)

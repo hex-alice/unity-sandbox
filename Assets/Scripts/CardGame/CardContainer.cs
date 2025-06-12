@@ -3,36 +3,98 @@ using UniRx;
 using UnityEngine;
 using DG.Tweening;
 using UnityEngine.UI;
+using UnityEngine.XR;
 
 public class CardContainer : MonoBehaviour
 {
     [SerializeField] CardObject CardTemplate;
-    [SerializeField] GameObject ContainerTemplate;
-    [SerializeField] Transform ContainerTransform;
     [SerializeField] DeckContainer Deck;
 
-    List<CardObject> HandCardList = new();
+    [SerializeField] CardObject SelectedCard;
+
+    [SerializeField] List<CardObject> HandCardList = new();
     Queue<CardObject> UnusedCardList = new();
 
-    List<GameObject> HandCardObject = new();
-    Queue<GameObject> UnusedCardObject = new();
+    void Update()
+    {
+        if (SelectedCard == null)
+            return;
 
+        // var selectedCardRect = SelectedCard.transform as RectTransform;
 
-    [ContextMenu("Add Hand")]
+        for (int i = 0; i < HandCardList.Count; i++)
+        {
+            var currentCard = HandCardList[i];
+            if (SelectedCard == currentCard)
+                continue;
+
+            // If SelectedCard is to the left of currentCard (or whatever logic you want)
+                if (SelectedCard.transform.position.x > currentCard.transform.position.x)
+                {
+                    int selectedIndex = HandCardList.IndexOf(SelectedCard);
+
+                    if (selectedIndex > i)
+                        continue;
+
+                    HandCardList[i] = SelectedCard;
+                    HandCardList[selectedIndex] = currentCard;
+
+                    break;
+                }
+                else if (SelectedCard.transform.position.x < currentCard.transform.position.x)
+                {
+                    // Also swap in your HandCardList so data matches UI
+                    int selectedIndex = HandCardList.IndexOf(SelectedCard);
+
+                    if (selectedIndex < i)
+                        continue;
+
+                    HandCardList[i] = SelectedCard;
+                    HandCardList[selectedIndex] = currentCard;
+                    break;
+                }
+        }
+        
+        UpdateCard(false);
+    }
+
+    void UpdateCard(bool skipTween)
+    {
+        var cardCount = HandCardList.Count;
+
+        if (cardCount == 0)
+            return;
+
+        var cardSpacing = 1f / cardCount;
+        var firstCardPos = 0.5f - (cardCount - 1) * cardSpacing / 2;
+
+        var rect = transform as RectTransform;
+        var width = rect.sizeDelta.x;
+     
+        for (int i = 0; i < cardCount; i++)
+        {
+            if (SelectedCard != null && SelectedCard == HandCardList[i])
+                continue;
+
+            var cardRect =  HandCardList[i].transform as RectTransform;
+
+            var targetValue = firstCardPos + i * cardSpacing;
+            var targetPos = targetValue * (width - cardRect.sizeDelta.x);
+
+            if (skipTween)
+            {
+                cardRect.anchoredPosition = new Vector2(targetPos, 0);
+            }
+            else
+            {
+                cardRect.DOAnchorPos(new Vector2(targetPos, 0), 1f);
+            }
+        }
+    }
+
     public void AddHand()
     {
         CardObject addedCard;
-        GameObject cardContainer;
-
-        if (UnusedCardObject.Count > 0)
-        {
-            cardContainer = UnusedCardObject.Peek();
-
-        }
-        else
-        {
-            cardContainer = Instantiate(ContainerTemplate, transform);
-        }
 
         if (UnusedCardList.Count > 0)
         {
@@ -43,49 +105,20 @@ public class CardContainer : MonoBehaviour
         }
         else
         {
-            // var deckTransform = Deck.transform as RectTransform;
-            // var containerTransform = cardContainer.transform as RectTransform;
+            addedCard = Instantiate(CardTemplate, transform);
+            addedCard.transform.position = Deck.transform.position;
 
-            // addedCard = Instantiate(CardTemplate, ContainerTransform);
-
-            // var addedCardTransform = addedCard.gameObject.transform as RectTransform;
-            // addedCardTransform.anchoredPosition = deckTransform.anchoredPosition;
-            // addedCard.transform.SetParent(cardContainer.transform, worldPositionStays: true);
-
-            // Debug.Log(addedCardTransform.anchoredPosition);
-            // Debug.Log(containerTransform.anchoredPosition);
-
-            // addedCardTransform.DOAnchorPos(containerTransform.anchoredPosition, 1f);
-
-            // RegisterCardEvent(addedCard);
-
-            // 1. Instantiate card under a neutral layer
-            addedCard = Instantiate(CardTemplate, ContainerTransform);
-            RectTransform cardRect = addedCard.GetComponent<RectTransform>();
-
-            // 2. Set its world position to match Deck
-            cardRect.position = Deck.GetComponent<RectTransform>().position;
-
-            // 3. Animate to CardContainer position (world space)
-            Vector3 targetPos = cardContainer.GetComponent<RectTransform>().position;
-
-            LayoutRebuilder.ForceRebuildLayoutImmediate(this.transform as RectTransform);
-
-            cardRect.DOMove(targetPos, 0.5f).OnComplete(() =>
-            {
-                // // 4. Reparent to CardContainer after animation
-                // cardRect.SetParent(cardContainer.transform, worldPositionStays: false);
-                // cardRect.anchoredPosition = Vector2.zero; // Snap to layout slot if needed
-            });
-
-            RegisterCardEvent(addedCard); 
+            RegisterCardEvent(addedCard);
         }
+
+        addedCard.name = HandCardList.Count.ToString();
+
+        HandCardList.Add(addedCard);
+        UpdateCard(false);
     }
 
     void RegisterCardEvent(CardObject cardObject)
     {
-        Debug.Log("Register");
-
         cardObject.OnPointerEnterAsObservable
             .Subscribe(OnPointerEnter)
             .AddTo(this);
@@ -107,11 +140,15 @@ public class CardContainer : MonoBehaviour
             .AddTo(this);
 
         cardObject.OnBeginDragAsObservable
-            .Subscribe()
+            .Subscribe(OnBeginDrag)
             .AddTo(this);
 
         cardObject.OnEndDragAsObservable
-            .Subscribe()
+            .Subscribe(OnEndDrag)
+            .AddTo(this);
+
+        cardObject.OnDragAsObservable
+            .Subscribe(OnDrag)
             .AddTo(this);
 
         cardObject.OnPointerEnterAsObservable
@@ -125,17 +162,33 @@ public class CardContainer : MonoBehaviour
 
     void OnPointerEnter(CardObject cardObject)
     {
-        Debug.Log("OnPointerEnter");
+       
     }
 
     void OnPointerExit(CardObject cardObject)
     {
-        Debug.Log("OnPointerExit");
+       
     }
 
     void OnPointerUp(CardObject cardObject)
     {
-        cardObject.transform.localPosition = Vector3.zero;
+       
+    }
+
+    void OnBeginDrag(CardObject cardObject)
+    {
+        SelectedCard = cardObject;
+    }
+
+    void OnEndDrag(CardObject cardObject)
+    {
+        SelectedCard = null;
+         UpdateCard(false);
+    }
+
+    void OnDrag(CardObject cardObject)
+    {
+
     }
 
     public void RemoveHand()
